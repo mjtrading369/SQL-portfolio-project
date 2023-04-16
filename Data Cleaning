@@ -1,0 +1,133 @@
+/* cleaning Data in SQL Queries */
+
+Select * 
+from NashvilleHousing
+
+--- Standardize Date Format 
+Select Saledate
+from NashvilleHousing
+
+update NashvilleHousing
+Set SaleDate = CONVERT(Date, SaleDate) -- for some reason my machine was not converting it hence the reason i created the below querries.  
+
+Alter Table NashvilleHousing
+add SaleDateConverted Date;
+
+Update NashvilleHousing
+Set SaleDateConverted = CONVERT(Date, SaleDate)
+
+---Populate Property Addresss Data
+Select *
+from NashvilleHousing
+---Where PropertyAddress is null
+order by ParcelID
+
+
+
+---is null check the first part if it is null then add the second part to it. 
+Select a.ParcelID, a.PropertyAddress, b.ParcelID, b.PropertyAddress, ISNULL(a.PropertyAddress,b.PropertyAddress)
+FROM NashvilleHousing a
+JOIN NashvilleHousing b
+on a.ParcelID =b.ParcelID
+AND a.[UniqueID ] <> b. [UniqueID ]
+Where a.PropertyAddress is null
+
+--- update all null property addresses with correct address base on the parcel ID
+update a
+SET PropertyAddress =ISNULL(a.PropertyAddress,b.PropertyAddress)
+FROM NashvilleHousing a
+JOIN NashvilleHousing b
+on a.ParcelID =b.ParcelID
+AND a.[UniqueID ] <> b. [UniqueID ]
+Where a.PropertyAddress is null
+
+---Breaking out Address into Individual Columns (Address, City, State)
+
+Select PropertyAddress
+from NashvilleHousing
+
+
+-- the minus 1 so when it returns the address the comma is remove 
+---also the second substring is to move the city to a different collumn and +1 is remove the comma from the beginning of it.  
+Select
+SUBSTRING(PropertyAdDress, 1, CHARINDEX(',', PropertyAddress)-1) as Address 
+,SUBSTRING(PropertyAdDress, CHARINDEX(',', PropertyAddress)+1, LEN(PropertyAddress)) as City
+From NashvilleHousing
+
+
+Alter Table NashvilleHousing
+add PropertySplitAddress Nvarchar(255);
+
+Update NashvilleHousing
+Set PropertySplitAddress = SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress)-1)
+
+Alter Table NashvilleHousing
+add PropertySplitCity Nvarchar(255);
+
+Update NashvilleHousing
+Set PropertySplitCity = SUBSTRING(PropertyAdDress, CHARINDEX(',', PropertyAddress)+1, LEN(PropertyAddress))
+
+
+--- the easier way to split addresses with city or state included, is the use the Parsename function but Parsename look for periods instead of comma so I will use 
+--replace function to replace the commas with the address field with periods.  The numbers at the end is to tell which one to parse from the period
+
+Select 
+PARSENAME(REPLACE(OwnerAddress, ',', '.'), 3)
+,PARSENAME(REPLACE(OwnerAddress, ',', '.'), 2)
+,PARSENAME(REPLACE(OwnerAddress, ',', '.'), 1)
+from NashvilleHousing
+
+
+Alter Table NashvilleHousing
+add OwnerSplitAddress Nvarchar(255);
+
+Alter Table NashvilleHousing
+add OwnerSplitCity Nvarchar(255);
+
+Alter Table NashvilleHousing
+add OwnerSplitState Nvarchar(255);
+
+Update NashvilleHousing
+Set OwnerSplitAddress = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 3)
+Update NashvilleHousing
+Set OwnerSplitCity = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 2)
+Update NashvilleHousing
+Set OwnerSplitState = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 1)
+
+
+---Change Y and N to Yes and N in "Sold as Vacant" field
+
+Select SoldAsVacant
+, Case When SoldAsVacant ='Y' Then 'Yes'
+When SoldAsVacant = 'N' then 'No'
+else SoldAsVacant
+end
+from NashvilleHousing
+
+
+update NashvilleHousing
+Set SoldAsVacant = Case When SoldAsVacant ='Y' Then 'Yes'
+When SoldAsVacant = 'N' then 'No'
+else SoldAsVacant
+end
+
+
+--- Remove Duplicates
+WITH RowNumCTE as (
+select *,
+ROW_NUMBER() over(
+PARTITION BY ParcelID, PropertyAddress, SalePrice, SaleDate, LegalReference
+ORDER BY UniqueId) row_num
+From NashvilleHousing)
+
+Delete
+FROM RowNumCTE
+WHERE row_num > 1
+
+
+--- Delete Unused Columns
+Select* 
+From NashvilleHousing
+
+ALTER TABLE NashvilleHousing
+DROP COLUMN OwnerAddress, TaxDistrict, PropertyAddress, SaleDate
